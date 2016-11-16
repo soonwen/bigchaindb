@@ -131,13 +131,17 @@ POST /transactions/
 GET /statuses/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e
 --------------------------------
 
-.. http:get:: /statuses/{tx_id}/
+.. http:get:: /statuses/{tx_id}
 
    Get the status of a transaction with the ID ``tx_id``, if a transaction
    with that ``tx_id`` exists.
 
    The possible status values are ``backlog``, ``undecided``, ``valid`` or
    ``invalid``.
+
+   If a transaction is persisted to the chain and it's status is set to
+   ``valid`` or ``undecided``, a ``303 See Other`` status code is returned, as
+   well as a URL to the resource in the location header.
 
    :param tx_id: transaction ID
    :type tx_id: hex string
@@ -157,10 +161,23 @@ GET /statuses/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e
       Content-Type: application/json
 
       {
+        "status": "invalid"
+      }
+
+   **Example response**:
+
+   .. sourcecode:: http
+
+      HTTP/1.1 303 See Other
+      Content-Type: application/json
+      Location: ../transactions/7ad5a4b83bc8c70c4fd7420ff3c60693ab8e6d0e3124378ca69ed5acd2578792
+
+      {
         "status": "valid"
       }
 
-   :statuscode 200: A transaction with that ID was found and the status is returned.
+   :statuscode 200: A transaction with that ID was found. The status is either ``backlog``, ``invalid``.
+   :statuscode 303: A transaction with that ID was found and persisted to the chain. A location header to the resource is provided.
    :statuscode 404: A transaction with that ID was not found.
 
 
