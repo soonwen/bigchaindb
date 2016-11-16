@@ -121,18 +121,19 @@ POST /transactions/
 
       HTTP/1.1 201 Created
       Content-Type: application/json
+      Location: ../statuses/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e
 
 
    :statuscode 202: The pushed transaction was accepted, but the processing has not been completed.
    :statuscode 400: The transaction was invalid and not created.
 
 
-GET /transactions/{tx_id}/status
+GET /statuses/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e
 --------------------------------
 
-.. http:get:: /transactions/{tx_id}/status
+.. http:get:: /statuses/{tx_id}/
 
-   Get the status of the transaction with the ID ``tx_id``, if a transaction
+   Get the status of a transaction with the ID ``tx_id``, if a transaction
    with that ``tx_id`` exists.
 
    The possible status values are ``backlog``, ``undecided``, ``valid`` or
@@ -145,7 +146,7 @@ GET /transactions/{tx_id}/status
 
    .. sourcecode:: http
 
-      GET /transactions/7ad5a4b83bc8c70c4fd7420ff3c60693ab8e6d0e3124378ca69ed5acd2578792/status HTTP/1.1
+      GET /statuses/7ad5a4b83bc8c70c4fd7420ff3c60693ab8e6d0e3124378ca69ed5acd2578792 HTTP/1.1
       Host: example.com
 
    **Example response**:
