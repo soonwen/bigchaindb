@@ -307,7 +307,7 @@ Transactions
 
    .. sourcecode:: http
 
-      HTTP/1.1 201 Created
+      HTTP/1.1 202 Accepted
       Content-Type: application/json
       Location: ../statuses/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e
 
