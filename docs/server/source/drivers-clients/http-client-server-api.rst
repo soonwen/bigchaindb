@@ -181,6 +181,75 @@ GET /statuses/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e
    :statuscode 404: A transaction with that ID was not found.
 
 
+GET /transactions
+-------------------------
+
+.. http:get:: /transactions?fields=id,conditions&fulfilled=false&owner_after={owner_after}
+
+   Get a list of transactions with unfulfilled conditions (conditions that have
+   not been used yet in a persisted transaction.
+
+   If the querystring ``fulfilled`` is set to ``false`` and all conditions for
+   ``owner_after`` happen to be fulfilled already, this endpoint will return
+   an empty list.
+
+
+    .. note::
+
+       This endpoint will return a ``HTTP 400 Bad Request`` if the querystring
+       ``owner_after`` happens to not be defined in the request.
+
+   :param fields: The fields to be included in a transaction.
+   :type fields: string
+
+   :param fulfilled: A flag to indicate if transaction's with fulfilled conditions should be returned.
+   :type fields: boolean
+
+   :param owner_after: A public key, able to validly spend an output of a transaction, assuming the user also has the corresponding private key.
+   :type owner_after: base58 encoded string
+
+   **Example request**:
+
+   .. sourcecode:: http
+
+      GET /transactions?fields=id,conditions&fulfilled=false&owner_after=1AAAbbb...ccc HTTP/1.1
+      Host: example.com
+
+   **Example response**:
+
+   .. sourcecode:: http
+
+      HTTP/1.1 200 OK
+      Content-Type: application/json
+
+      [{
+        "transaction": {
+          "conditions": [
+            {
+              "cid": 0,
+              "condition": {
+                "uri": "cc:4:20:GG-pi3CeIlySZhQoJVBh9O23PzrOuhnYI7OHqIbHjkk:96",
+                "details": {
+                  "signature": null,
+                  "type": "fulfillment",
+                  "type_id": 4,
+                  "bitmask": 32,
+                  "public_key": "1AAAbbb...ccc"
+                }
+              },
+              "amount": 1,
+              "owners_after": [
+                "1AAAbbb...ccc"
+              ]
+            }
+          ],
+        "id": "2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e",
+      }, ...]
+
+
+   :statuscode 200: A list of transaction's containing unfulfilled conditions was found and returned.
+   :statuscode 400: The request wasn't understood by the server, e.g. the ``owner_after`` querystring was not included in the request.
+
 GET /transactions/{txid}
 -------------------------
 
@@ -256,94 +325,3 @@ GET /transactions/{txid}
 
    :statuscode 200: A transaction with that ID was found.
    :statuscode 404: A transaction with that ID was not found.
-
-
-GET /transactions/{txid}/conditions/{cid}
--------------------------
-
-.. http:get:: /transactions/{txid}/conditions/{cid}
-
-   Returns the condition with index ``cid`` from a transaction with ID
-   ``txid``.
-
-   If either a transaction with ID ``txid`` isn't found or the condition
-   requested at the index ``cid`` is not found, this endpoint will return a
-   ``400 Bad Request``.
-
-   :param txid: transaction ID
-   :type txid: hex string
-
-   :param cid: A condition's index in the transaction
-   :type cid: integer
-
-   **Example request**:
-
-   .. sourcecode:: http
-
-      GET /transactions/2d431...0b4b0e/conditions/0 HTTP/1.1
-      Host: example.com
-
-   **Example response**:
-
-   .. sourcecode:: http
-
-      HTTP/1.1 200 OK
-      Content-Type: application/json
-
-      {
-        "condition": {
-          "uri": "cc:4:20:GG-pi3CeIlySZhQoJVBh9O23PzrOuhnYI7OHqIbHjkk:96",
-          "details": {
-            "signature": null,
-            "type": "fulfillment",
-            "type_id": 4,
-            "bitmask": 32,
-            "public_key": "2ePYHfV3yS3xTxF9EE3Xjo8zPwq2RmLPFAJGQqQKc3j6"
-          }
-        }
-      }
-
-   :statuscode 200: A condition with ``cid`` was found in a transaction with ID ``txid``.
-   :statuscode 400: Either a transaction with ``txid`` or a condition with ``cid`` wasn't found.
-
-
-GET /unspents/
--------------------------
-
-.. http:get:: /unspents?owner_after={owner_after}
-
-   Get a list of links to transactions' conditions that have not been used in
-   a previous transaction and could hence be called unspent conditions/outputs
-   (or simply: unspents).
-
-   This endpoint will return a ``HTTP 400 Bad Request`` if the querystring
-   ``owner_after`` happens to not be defined in the request.
-
-   Note that if unspents for a certain ``owner_after`` have not been found by
-   the server, this will result in the server returning a 200 OK HTTP status
-   code and an empty list in the response's body.
-
-   :param owner_after: A public key, able to validly spend an output of a transaction, assuming the user also has the corresponding private key.
-   :type owner_after: base58 encoded string
-
-   **Example request**:
-
-   .. sourcecode:: http
-
-      GET /unspents?owner_after=1AAAbbb...ccc HTTP/1.1
-      Host: example.com
-
-   **Example response**:
-
-   .. sourcecode:: http
-
-      HTTP/1.1 200 OK
-      Content-Type: application/json
-
-      [
-        '../transactions/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e/conditions/0',
-        '../transactions/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e/conditions/1'
-      ]
-
-   :statuscode 200: A list of outputs were found and returned in the body of the response.
-   :statuscode 400: The request wasn't understood by the server, e.g. the ``owner_after`` querystring was not included in the request.
