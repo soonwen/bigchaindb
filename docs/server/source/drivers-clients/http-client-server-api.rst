@@ -121,10 +121,9 @@ POST /transactions/
 
       HTTP/1.1 201 Created
       Content-Type: application/json
-      Location: ./transactions/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e
 
 
-   :statuscode 201: A new transaction was created.
+   :statuscode 202: The pushed transaction was accepted, but the processing has not been completed.
    :statuscode 400: The transaction was invalid and not created.
 
 
