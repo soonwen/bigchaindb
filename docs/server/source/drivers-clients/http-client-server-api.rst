@@ -7,7 +7,7 @@ The HTTP Client-Server API
    there is no ability to do complex queries using the HTTP API. We plan to add
    querying capabilities in the future.
 
-When you start Bigchaindb using `bigchaindb start`, an HTTP API is exposed at
+When you start BigchainDB using `bigchaindb start`, an HTTP API is exposed at
 the address stored in the BigchainDB node configuration settings. The default
 is:
 
