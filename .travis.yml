@@ -1,25 +1,43 @@
-sudo: required
 language: python
 cache: pip
+
 python:
   - 3.4
   - 3.5
 
-before_install:
-  - source /etc/lsb-release
-  - echo "deb http://download.rethinkdb.com/apt $DISTRIB_CODENAME main" | sudo tee -a /etc/apt/sources.list.d/rethinkdb.list
-  - wget -qO- https://download.rethinkdb.com/apt/pubkey.gpg | sudo apt-key add -
-  - sudo apt-get update -qq
+env:
+  - TOXENV=flake8
+  - TOXENV=docsroot
+  - TOXENV=docsserver
 
-install:
-  - sudo apt-get install rethinkdb
-  - pip install -e .[test]
-  - pip install codecov
+matrix:
+  fast_finish: true
+  allow_failures:
+  - env: BIGCHAINDB_DATABASE_BACKEND=mongodb
+  exclude:
+  - python: 3.4 
+    env: TOXENV=flake8 
+  - python: 3.4 
+    env: TOXENV=docsroot
+  - python: 3.4 
+    env: TOXENV=docsserver
+  include:
+  - python: 3.4
+    addons: 
+      rethinkdb: '2.3.5'
+    env: BIGCHAINDB_DATABASE_BACKEND=rethinkdb
+  - python: 3.5
+    services: mongodb
+    env: BIGCHAINDB_DATABASE_BACKEND=mongodb
+  - python: 3.5
+    addons: 
+      rethinkdb: '2.3.5'
+    env: BIGCHAINDB_DATABASE_BACKEND=rethinkdb
 
-before_script:
-  - flake8 --max-line-length 119 bigchaindb/
-  - rethinkdb --daemon
+before_install: sudo .ci/travis-before-install.sh
 
-script: py.test -n auto -s -v --cov=bigchaindb
+install: .ci/travis-install.sh
 
-after_success: codecov
+script: .ci/travis_script.sh
+
+after_success: .ci/travis-after-success.sh

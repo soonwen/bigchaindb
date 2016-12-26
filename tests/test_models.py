@@ -12,7 +12,7 @@ class TestTransactionModel(object):
             tx.validate(b)
 
         tx.operation = 'CREATE'
-        tx.fulfillments = []
+        tx.inputs = []
         with raises(ValueError):
             tx.validate(b)
 
@@ -38,7 +38,7 @@ class TestBlockModel(object):
 
     def test_block_serialization(self, b):
         from bigchaindb.common.crypto import hash_data
-        from bigchaindb.common.util import gen_timestamp, serialize
+        from bigchaindb.common.utils import gen_timestamp, serialize
         from bigchaindb.models import Block, Transaction
 
         transactions = [Transaction.create([b.me], [([b.me], 1)])]
@@ -70,7 +70,7 @@ class TestBlockModel(object):
 
     def test_block_deserialization(self, b):
         from bigchaindb.common.crypto import hash_data
-        from bigchaindb.common.util import gen_timestamp, serialize
+        from bigchaindb.common.utils import gen_timestamp, serialize
         from bigchaindb.models import Block, Transaction
 
         transactions = [Transaction.create([b.me], [([b.me], 1)])]
@@ -110,7 +110,7 @@ class TestBlockModel(object):
     def test_block_invalid_signature_deserialization(self, b):
         from bigchaindb.common.crypto import hash_data
         from bigchaindb.common.exceptions import InvalidSignature
-        from bigchaindb.common.util import gen_timestamp, serialize
+        from bigchaindb.common.utils import gen_timestamp, serialize
         from bigchaindb.models import Block, Transaction
 
         transactions = [Transaction.create([b.me], [([b.me], 1)])]
@@ -142,8 +142,8 @@ class TestBlockModel(object):
         assert Block(transactions) == Block(transactions)
 
     def test_sign_block(self, b):
-        from bigchaindb.common.crypto import SigningKey, VerifyingKey
-        from bigchaindb.common.util import gen_timestamp, serialize
+        from bigchaindb.common.crypto import PrivateKey, PublicKey
+        from bigchaindb.common.utils import gen_timestamp, serialize
         from bigchaindb.models import Block, Transaction
 
         transactions = [Transaction.create([b.me], [([b.me], 1)])]
@@ -156,13 +156,13 @@ class TestBlockModel(object):
             'voters': voters,
         }
         expected_block_serialized = serialize(expected_block).encode()
-        expected = SigningKey(b.me_private).sign(expected_block_serialized)
+        expected = PrivateKey(b.me_private).sign(expected_block_serialized)
         block = Block(transactions, b.me, timestamp, voters)
         block = block.sign(b.me_private)
         assert block.signature == expected.decode()
 
-        verifying_key = VerifyingKey(b.me)
-        assert verifying_key.verify(expected_block_serialized, block.signature)
+        public_key = PublicKey(b.me)
+        assert public_key.verify(expected_block_serialized, block.signature)
 
     def test_validate_already_voted_on_block(self, b, monkeypatch):
         from unittest.mock import Mock

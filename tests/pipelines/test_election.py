@@ -1,21 +1,23 @@
 import time
 from unittest.mock import patch
 
+import pytest
+
 from bigchaindb.common import crypto
-import rethinkdb as r
 from multipipes import Pipe, Pipeline
 
 from bigchaindb import Bigchain
 from bigchaindb.pipelines import election
 
 
-def test_check_for_quorum_invalid(b, user_vk):
+@pytest.mark.bdb
+def test_check_for_quorum_invalid(b, user_pk):
     from bigchaindb.models import Transaction
 
     e = election.Election()
 
     # create blocks with transactions
-    tx1 = Transaction.create([b.me], [([user_vk], 1)])
+    tx1 = Transaction.create([b.me], [([user_pk], 1)])
     test_block = b.create_block([tx1])
 
     # simulate a federation with four voters
@@ -29,28 +31,34 @@ def test_check_for_quorum_invalid(b, user_vk):
     b.write_block(test_block)
 
     # split_vote (invalid)
-    votes = [member.vote(test_block.id, 'abc', True) for member in test_federation[:2]] + \
-                   [member.vote(test_block.id, 'abc', False) for member in test_federation[2:]]
+    votes = [member.vote(test_block.id, 'a' * 64, True)
+             for member in test_federation[:2]] + \
+            [member.vote(test_block.id, 'b' * 64, False)
+             for member in test_federation[2:]]
 
     # cast votes
-    b.connection.run(r.table('votes').insert(votes, durability='hard'))
+    for vote in votes:
+        b.write_vote(vote)
 
     # since this block is now invalid, should pass to the next process
     assert e.check_for_quorum(votes[-1]) == test_block
 
 
-def test_check_for_quorum_invalid_prev_node(b, user_vk):
+@pytest.mark.bdb
+def test_check_for_quorum_invalid_prev_node(b, user_pk):
     from bigchaindb.models import Transaction
     e = election.Election()
 
     # create blocks with transactions
-    tx1 = Transaction.create([b.me], [([user_vk], 1)])
+    tx1 = Transaction.create([b.me], [([user_pk], 1)])
     test_block = b.create_block([tx1])
 
     # simulate a federation with four voters
     key_pairs = [crypto.generate_key_pair() for _ in range(4)]
-    test_federation = [Bigchain(public_key=key_pair[1], private_key=key_pair[0])
-                       for key_pair in key_pairs]
+    test_federation = [
+        Bigchain(public_key=key_pair[1], private_key=key_pair[0])
+        for key_pair in key_pairs
+    ]
 
     # add voters to block and write
     test_block.voters = [key_pair[1] for key_pair in key_pairs]
@@ -58,29 +66,35 @@ def test_check_for_quorum_invalid_prev_node(b, user_vk):
     b.write_block(test_block)
 
     # split vote over prev node
-    votes = [member.vote(test_block.id, 'abc', True) for member in test_federation[:2]] + \
-                   [member.vote(test_block.id, 'def', True) for member in test_federation[2:]]
+    votes = [member.vote(test_block.id, 'a' * 64, True)
+             for member in test_federation[:2]] + \
+            [member.vote(test_block.id, 'b' * 64, True)
+             for member in test_federation[2:]]
 
     # cast votes
-    b.connection.run(r.table('votes').insert(votes, durability='hard'))
+    for vote in votes:
+        b.write_vote(vote)
 
     # since nodes cannot agree on prev block, the block is invalid
     assert e.check_for_quorum(votes[-1]) == test_block
 
 
-def test_check_for_quorum_valid(b, user_vk):
+@pytest.mark.bdb
+def test_check_for_quorum_valid(b, user_pk):
     from bigchaindb.models import Transaction
 
     e = election.Election()
 
     # create blocks with transactions
-    tx1 = Transaction.create([b.me], [([user_vk], 1)])
+    tx1 = Transaction.create([b.me], [([user_pk], 1)])
     test_block = b.create_block([tx1])
 
     # simulate a federation with four voters
     key_pairs = [crypto.generate_key_pair() for _ in range(4)]
-    test_federation = [Bigchain(public_key=key_pair[1], private_key=key_pair[0])
-                       for key_pair in key_pairs]
+    test_federation = [
+        Bigchain(public_key=key_pair[1], private_key=key_pair[0])
+        for key_pair in key_pairs
+    ]
 
     # add voters to block and write
     test_block.voters = [key_pair[1] for key_pair in key_pairs]
@@ -88,29 +102,32 @@ def test_check_for_quorum_valid(b, user_vk):
     b.write_block(test_block)
 
     # votes for block one
-    votes = [member.vote(test_block.id, 'abc', True)
+    votes = [member.vote(test_block.id, 'a' * 64, True)
              for member in test_federation]
     # cast votes
-    b.connection.run(r.table('votes').insert(votes, durability='hard'))
+    for vote in votes:
+        b.write_vote(vote)
 
     # since this block is valid, should go nowhere
     assert e.check_for_quorum(votes[-1]) is None
 
 
-def test_check_requeue_transaction(b, user_vk):
+@pytest.mark.bdb
+def test_check_requeue_transaction(b, user_pk):
     from bigchaindb.models import Transaction
 
     e = election.Election()
 
     # create blocks with transactions
-    tx1 = Transaction.create([b.me], [([user_vk], 1)])
+    tx1 = Transaction.create([b.me], [([user_pk], 1)])
     test_block = b.create_block([tx1])
 
     e.requeue_transactions(test_block)
-    backlog_tx = b.connection.run(r.table('backlog').get(tx1.id))
-    backlog_tx.pop('assignee')
-    backlog_tx.pop('assignment_timestamp')
-    assert backlog_tx == tx1.to_dict()
+
+    time.sleep(1)
+    backlog_tx, status = b.get_transaction(tx1.id, include_status=True)
+    assert status == b.TX_IN_BACKLOG
+    assert backlog_tx == tx1
 
 
 @patch.object(Pipeline, 'start')
@@ -122,8 +139,10 @@ def test_start(mock_start):
     mock_start.assert_called_with()
 
 
-def test_full_pipeline(b, user_vk):
+@pytest.mark.bdb
+def test_full_pipeline(b, user_pk):
     import random
+    from bigchaindb.backend import query
     from bigchaindb.models import Transaction
 
     outpipe = Pipe()
@@ -131,7 +150,7 @@ def test_full_pipeline(b, user_vk):
     # write two blocks
     txs = []
     for i in range(100):
-        tx = Transaction.create([b.me], [([user_vk], 1)],
+        tx = Transaction.create([b.me], [([user_pk], 1)],
                                 {'msg': random.random()})
         tx = tx.sign([b.me_private])
         txs.append(tx)
@@ -141,7 +160,7 @@ def test_full_pipeline(b, user_vk):
 
     txs = []
     for i in range(100):
-        tx = Transaction.create([b.me], [([user_vk], 1)],
+        tx = Transaction.create([b.me], [([user_pk], 1)],
                                 {'msg': random.random()})
         tx = tx.sign([b.me_private])
         txs.append(tx)
@@ -153,20 +172,21 @@ def test_full_pipeline(b, user_vk):
     pipeline.setup(indata=election.get_changefeed(), outdata=outpipe)
     pipeline.start()
     time.sleep(1)
-    # vote one block valid, one invalid
-    vote_valid = b.vote(valid_block.id, 'abc', True)
-    vote_invalid = b.vote(invalid_block.id, 'abc', False)
 
-    b.connection.run(r.table('votes').insert(vote_valid, durability='hard'))
-    b.connection.run(r.table('votes').insert(vote_invalid, durability='hard'))
+    # vote one block valid, one invalid
+    vote_valid = b.vote(valid_block.id, 'b' * 64, True)
+    vote_invalid = b.vote(invalid_block.id, 'c' * 64, False)
+
+    b.write_vote(vote_valid)
+    b.write_vote(vote_invalid)
 
     outpipe.get()
     pipeline.terminate()
 
     # only transactions from the invalid block should be returned to
     # the backlog
-    assert b.connection.run(r.table('backlog').count()) == 100
+    assert query.count_backlog(b.connection) == 100
     # NOTE: I'm still, I'm still tx from the block.
     tx_from_block = set([tx.id for tx in invalid_block.transactions])
-    tx_from_backlog = set([tx['id'] for tx in list(b.connection.run(r.table('backlog')))])
+    tx_from_backlog = set([tx['id'] for tx in list(query.get_stale_transactions(b.connection, 0))])
     assert tx_from_block == tx_from_backlog

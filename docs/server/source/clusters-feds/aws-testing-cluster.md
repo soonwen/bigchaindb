@@ -26,13 +26,13 @@ pip install fabric fabtools requests boto3 awscli
 What did you just install?
 
 * "[Fabric](http://www.fabfile.org/) is a Python (2.5-2.7) library and command-line tool for streamlining the use of SSH for application deployment or systems administration tasks."
-* [fabtools](https://github.com/ronnix/fabtools) are "tools for writing awesome Fabric files"
+* [fabtools](https://github.com/fabtools/fabtools) are "tools for writing awesome Fabric files"
 * [requests](http://docs.python-requests.org/en/master/) is a Python package/library for sending HTTP requests
 * "[Boto](https://boto3.readthedocs.io/en/latest/) is the Amazon Web Services (AWS) SDK for Python, which allows Python developers to write software that makes use of Amazon services like S3 and EC2." (`boto3` is the name of the latest Boto package.)
 * [The aws-cli package](https://pypi.python.org/pypi/awscli), which is an AWS Command Line Interface (CLI).
 
 
-## Basic AWS Setup
+## Setting up in AWS
 
 See the page about [basic AWS Setup](../appendices/aws-setup.html) in the Appendices.
 
@@ -126,7 +126,7 @@ BRANCH="master"
 WHAT_TO_DEPLOY="servers"
 SSH_KEY_NAME="not-set-yet"
 USE_KEYPAIRS_FILE=False
-IMAGE_ID="ami-9c09f0f3"
+IMAGE_ID="ami-8504fdea"
 INSTANCE_TYPE="t2.medium"
 SECURITY_GROUP="bigchaindb"
 USING_EBS=True
@@ -136,6 +136,8 @@ BIND_HTTP_TO_LOCALHOST=True
 ```
 
 Make a copy of that file and call it whatever you like (e.g. `cp example_deploy_conf.py my_deploy_conf.py`). You can leave most of the settings at their default values, but you must change the value of `SSH_KEY_NAME` to the name of your private SSH key. You can do that with a text editor. Set `SSH_KEY_NAME` to the name you used for `<key-name>` when you generated an RSA key pair for SSH (in basic AWS setup).
+
+You'll also want to change the `IMAGE_ID` to one that's up-to-date and available in your AWS region. If you don't remember your AWS region, then look in your `$HOME/.aws/config` file. You can find an up-to-date Ubuntu image ID for your region at [https://cloud-images.ubuntu.com/locator/ec2/](https://cloud-images.ubuntu.com/locator/ec2/). An example search string is "eu-central-1 16.04 LTS amd64 hvm:ebs-ssd". You should replace "eu-central-1" with your region name.
 
 If you want your nodes to have a predictable set of pre-generated keypairs, then you should 1) set `USE_KEYPAIRS_FILE=True` in the AWS deployment configuration file, and 2) provide a `keypairs.py` file containing enough keypairs for all of your nodes. You can generate a `keypairs.py` file using the `write_keypairs_file.py` script. For example:
 ```text

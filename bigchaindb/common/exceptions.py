@@ -22,9 +22,17 @@ class DoubleSpend(Exception):
     """Raised if a double spend is found"""
 
 
-class InvalidHash(Exception):
+class ValidationError(Exception):
+    """Raised if there was an error in validation"""
+
+
+class InvalidHash(ValidationError):
     """Raised if there was an error checking the hash for a particular
     operation"""
+
+
+class SchemaValidationError(ValidationError):
+    """Raised if there was any error validating an object's schema"""
 
 
 class InvalidSignature(Exception):
@@ -71,7 +79,7 @@ class CyclicBlockchainError(Exception):
 
 class TransactionNotInValidBlock(Exception):
     """Raised when a transfer transaction is attempting to fulfill the
-    conditions of a transaction that is in an invalid or undecided block"""
+    outputs of a transaction that is in an invalid or undecided block"""
 
 
 class AssetIdMismatch(Exception):
@@ -79,4 +87,4 @@ class AssetIdMismatch(Exception):
 
 
 class AmountError(Exception):
-    """Raised when the amount of a non-divisible asset is different then 1"""
+    """Raised when there is a problem with a transaction's output amounts"""

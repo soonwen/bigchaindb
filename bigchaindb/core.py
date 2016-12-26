@@ -5,13 +5,12 @@ from time import time
 
 from itertools import compress
 from bigchaindb.common import crypto, exceptions
-from bigchaindb.common.util import gen_timestamp, serialize
-from bigchaindb.common.transaction import TransactionLink, Asset
+from bigchaindb.common.utils import gen_timestamp, serialize
+from bigchaindb.common.transaction import TransactionLink
 
 import bigchaindb
 
-from bigchaindb.db.utils import Connection, get_backend
-from bigchaindb import config_utils, util
+from bigchaindb import backend, config_utils, utils
 from bigchaindb.consensus import BaseConsensusRules
 from bigchaindb.models import Block, Transaction
 
@@ -31,9 +30,7 @@ class Bigchain(object):
     # return if transaction is in backlog
     TX_IN_BACKLOG = 'backlog'
 
-    def __init__(self, host=None, port=None, dbname=None, backend=None,
-                 public_key=None, private_key=None, keyring=[],
-                 backlog_reassign_delay=None):
+    def __init__(self, public_key=None, private_key=None, keyring=[], connection=None, backlog_reassign_delay=None):
         """Initialize the Bigchain instance
 
         A Bigchain instance has several configuration parameters (e.g. host).
@@ -46,35 +43,25 @@ class Bigchain(object):
         its default value (defined in bigchaindb.__init__).
 
         Args:
-            host (str): hostname where RethinkDB is running.
-            port (int): port in which RethinkDB is running (usually 28015).
-            dbname (str): the name of the database to connect to (usually bigchain).
-            backend (:class:`~bigchaindb.db.backends.rethinkdb.RehinkDBBackend`):
-                the database backend to use.
             public_key (str): the base58 encoded public key for the ED25519 curve.
             private_key (str): the base58 encoded private key for the ED25519 curve.
             keyring (list[str]): list of base58 encoded public keys of the federation nodes.
+            connection (:class:`~bigchaindb.backend.connection.Connection`):
+                A connection to the database.
         """
 
         config_utils.autoconfigure()
-        self.host = host or bigchaindb.config['database']['host']
-        self.port = port or bigchaindb.config['database']['port']
-        self.dbname = dbname or bigchaindb.config['database']['name']
-        self.backend = backend or get_backend(host, port, dbname)
+
         self.me = public_key or bigchaindb.config['keypair']['public']
         self.me_private = private_key or bigchaindb.config['keypair']['private']
         self.nodes_except_me = keyring or bigchaindb.config['keyring']
         self.backlog_reassign_delay = backlog_reassign_delay or bigchaindb.config['backlog_reassign_delay']
         self.consensus = BaseConsensusRules
-        # change RethinkDB read mode to majority.  This ensures consistency in query results
-        self.read_mode = 'majority'
-
+        self.connection = connection if connection else backend.connect(**bigchaindb.config['database'])
         if not self.me or not self.me_private:
             raise exceptions.KeypairNotFoundException()
 
-        self.connection = Connection(host=self.host, port=self.port, db=self.dbname)
-
-    def write_transaction(self, signed_transaction, durability='soft'):
+    def write_transaction(self, signed_transaction):
         """Write the transaction to bigchain.
 
         When first writing a transaction to the bigchain the transaction will be kept in a backlog until
@@ -100,7 +87,7 @@ class Bigchain(object):
         signed_transaction.update({'assignment_timestamp': time()})
 
         # write to the backlog
-        return self.backend.write_transaction(signed_transaction)
+        return backend.query.write_transaction(self.connection, signed_transaction)
 
     def reassign_transaction(self, transaction):
         """Assign a transaction to a new node
@@ -126,8 +113,8 @@ class Bigchain(object):
             # There is no other node to assign to
             new_assignee = self.me
 
-        return self.backend.update_transaction(
-                transaction['id'],
+        return backend.query.update_transaction(
+                self.connection, transaction['id'],
                 {'assignee': new_assignee, 'assignment_timestamp': time()})
 
     def delete_transaction(self, *transaction_id):
@@ -140,7 +127,7 @@ class Bigchain(object):
             The database response.
         """
 
-        return self.backend.delete_transaction(*transaction_id)
+        return backend.query.delete_transaction(self.connection, *transaction_id)
 
     def get_stale_transactions(self):
         """Get a cursor of stale transactions.
@@ -149,7 +136,7 @@ class Bigchain(object):
         backlog after some amount of time specified in the configuration
         """
 
-        return self.backend.get_stale_transactions(self.backlog_reassign_delay)
+        return backend.query.get_stale_transactions(self.connection, self.backlog_reassign_delay)
 
     def validate_transaction(self, transaction):
         """Validate a transaction.
@@ -200,7 +187,7 @@ class Bigchain(object):
             include_status (bool): also return the status of the block
                        the return value is then a tuple: (block, status)
         """
-        block = self.backend.get_block(block_id)
+        block = backend.query.get_block(self.connection, block_id)
         status = None
 
         if include_status:
@@ -260,10 +247,10 @@ class Bigchain(object):
                         break
 
                 # Query the transaction in the target block and return
-                response = self.backend.get_transaction_from_block(txid, target_block_id)
+                response = backend.query.get_transaction_from_block(self.connection, txid, target_block_id)
 
         if check_backlog:
-            response = self.backend.get_transaction_from_backlog(txid)
+            response = backend.query.get_transaction_from_backlog(self.connection, txid)
 
             if response:
                 tx_status = self.TX_IN_BACKLOG
@@ -304,7 +291,7 @@ class Bigchain(object):
         """
 
         # First, get information on all blocks which contain this transaction
-        blocks = self.backend.get_blocks_status_from_transaction(txid)
+        blocks = backend.query.get_blocks_status_from_transaction(self.connection, txid)
         if blocks:
             # Determine the election status of each block
             validity = {
@@ -330,41 +317,29 @@ class Bigchain(object):
         else:
             return None
 
-    def get_tx_by_metadata_id(self, metadata_id):
-        """Retrieves transactions related to a metadata.
+    def get_transactions_by_asset_id(self, asset_id):
+        """Retrieves valid or undecided transactions related to a particular
+        asset.
 
-        When creating a transaction one of the optional arguments is the `metadata`. The metadata is a generic
-        dict that contains extra information that can be appended to the transaction.
-
-        To make it easy to query the bigchain for that particular metadata we create a UUID for the metadata and
-        store it with the transaction.
-
-        Args:
-            metadata_id (str): the id for this particular metadata.
-
-        Returns:
-            A list of transactions containing that metadata. If no transaction exists with that metadata it
-            returns an empty list `[]`
-        """
-        cursor = self.backend.get_transactions_by_metadata_id(metadata_id)
-        return [Transaction.from_dict(tx) for tx in cursor]
-
-    def get_txs_by_asset_id(self, asset_id):
-        """Retrieves transactions related to a particular asset.
-
-        A digital asset in bigchaindb is identified by an uuid. This allows us to query all the transactions
-        related to a particular digital asset, knowing the id.
+        A digital asset in bigchaindb is identified by an uuid. This allows us
+        to query all the transactions related to a particular digital asset,
+        knowing the id.
 
         Args:
-            asset_id (str): the id for this particular metadata.
+            asset_id (str): the id for this particular asset.
 
         Returns:
-            A list of transactions containing related to the asset. If no transaction exists for that asset it
-            returns an empty list `[]`
+            A list of valid or undecided transactions related to the asset.
+            If no transaction exists for that asset it returns an empty list
+            `[]`
         """
-
-        cursor = self.backend.get_transactions_by_asset_id(asset_id)
-        return [Transaction.from_dict(tx) for tx in cursor]
+        txids = backend.query.get_txids_by_asset_id(self.connection, asset_id)
+        transactions = []
+        for txid in txids:
+            tx = self.get_transaction(txid)
+            if tx:
+                transactions.append(tx)
+        return transactions
 
     def get_asset_by_id(self, asset_id):
         """Returns the asset associated with an asset_id.
@@ -373,15 +348,14 @@ class Bigchain(object):
                 asset_id (str): The asset id.
 
             Returns:
-                :class:`~bigchaindb.common.transaction.Asset` if the asset
-                exists else None.
+                dict if the asset exists else None.
         """
-        cursor = self.backend.get_asset_by_id(asset_id)
+        cursor = backend.query.get_asset_by_id(self.connection, asset_id)
         cursor = list(cursor)
         if cursor:
-            return Asset.from_dict(cursor[0]['transaction']['asset'])
+            return cursor[0]['asset']
 
-    def get_spent(self, txid, cid):
+    def get_spent(self, txid, output):
         """Check if a `txid` was already used as an input.
 
         A transaction can be used as an input for another transaction. Bigchain needs to make sure that a
@@ -389,15 +363,16 @@ class Bigchain(object):
 
         Args:
             txid (str): The id of the transaction
-            cid (num): the index of the condition in the respective transaction
+            output (num): the index of the output in the respective transaction
 
         Returns:
             The transaction (Transaction) that used the `txid` as an input else
             `None`
         """
         # checks if an input was already spent
-        # checks if the bigchain has any transaction with input {'txid': ..., 'cid': ...}
-        transactions = list(self.backend.get_spent(txid, cid))
+        # checks if the bigchain has any transaction with input {'txid': ...,
+        # 'output': ...}
+        transactions = list(backend.query.get_spent(self.connection, txid, output))
 
         # a transaction_id should have been spent at most one time
         if transactions:
@@ -409,9 +384,10 @@ class Bigchain(object):
                 if self.get_transaction(transaction['id']):
                     num_valid_transactions += 1
                 if num_valid_transactions > 1:
-                    raise exceptions.DoubleSpend(
-                        '`{}` was spent more then once. There is a problem with the chain'.format(
-                            txid))
+                    raise exceptions.DoubleSpend(('`{}` was spent more than'
+                                                  ' once. There is a problem'
+                                                  ' with the chain')
+                                                 .format(txid))
 
             if num_valid_transactions:
                 return Transaction.from_dict(transactions[0])
@@ -422,18 +398,18 @@ class Bigchain(object):
             return None
 
     def get_owned_ids(self, owner):
-        """Retrieve a list of `txid`s that can be used as inputs.
+        """Retrieve a list of ``txid`` s that can be used as inputs.
 
         Args:
             owner (str): base58 encoded public key.
 
         Returns:
-            :obj:`list` of TransactionLink: list of `txid`s and `cid`s
+            :obj:`list` of TransactionLink: list of ``txid`` s and ``output`` s
             pointing to another transaction's condition
         """
 
         # get all transactions in which owner is in the `owners_after` list
-        response = self.backend.get_owned_ids(owner)
+        response = backend.query.get_owned_ids(self.connection, owner)
         owned = []
 
         for tx in response:
@@ -445,22 +421,22 @@ class Bigchain(object):
 
             # NOTE: It's OK to not serialize the transaction here, as we do not
             # use it after the execution of this function.
-            # a transaction can contain multiple outputs (conditions) so we need to iterate over all of them
+            # a transaction can contain multiple outputs so we need to iterate over all of them
             # to get a list of outputs available to spend
-            for index, cond in enumerate(tx['transaction']['conditions']):
+            for index, output in enumerate(tx['outputs']):
                 # for simple signature conditions there are no subfulfillments
                 # check if the owner is in the condition `owners_after`
-                if len(cond['owners_after']) == 1:
-                    if cond['condition']['details']['public_key'] == owner:
+                if len(output['public_keys']) == 1:
+                    if output['condition']['details']['public_key'] == owner:
                         tx_link = TransactionLink(tx['id'], index)
                 else:
-                    # for transactions with multiple `owners_after` there will be several subfulfillments nested
+                    # for transactions with multiple `public_keys` there will be several subfulfillments nested
                     # in the condition. We need to iterate the subfulfillments to make sure there is a
                     # subfulfillment for `owner`
-                    if util.condition_details_has_owner(cond['condition']['details'], owner):
+                    if utils.condition_details_has_owner(output['condition']['details'], owner):
                         tx_link = TransactionLink(tx['id'], index)
                 # check if input was already spent
-                if not self.get_spent(tx_link.txid, tx_link.cid):
+                if not self.get_spent(tx_link.txid, tx_link.output):
                     owned.append(tx_link)
 
         return owned
@@ -518,14 +494,14 @@ class Bigchain(object):
                 but the vote is invalid.
 
         """
-        votes = list(self.backend.get_votes_by_block_id_and_voter(block_id, self.me))
+        votes = list(backend.query.get_votes_by_block_id_and_voter(self.connection, block_id, self.me))
 
         if len(votes) > 1:
             raise exceptions.MultipleVotesError('Block {block_id} has {n_votes} votes from public key {me}'
                                                 .format(block_id=block_id, n_votes=str(len(votes)), me=self.me))
         has_previous_vote = False
         if votes:
-            if util.verify_vote_signature(voters, votes[0]):
+            if utils.verify_vote_signature(voters, votes[0]):
                 has_previous_vote = True
             else:
                 raise exceptions.ImproperVoteError('Block {block_id} already has an incorrectly signed vote '
@@ -533,17 +509,17 @@ class Bigchain(object):
 
         return has_previous_vote
 
-    def write_block(self, block, durability='soft'):
+    def write_block(self, block):
         """Write a block to bigchain.
 
         Args:
             block (Block): block to write to bigchain.
         """
 
-        return self.backend.write_block(block.to_str(), durability=durability)
+        return backend.query.write_block(self.connection, block)
 
     def transaction_exists(self, transaction_id):
-        return self.backend.has_transaction(transaction_id)
+        return backend.query.has_transaction(self.connection, transaction_id)
 
     def prepare_genesis_block(self):
         """Prepare a genesis block."""
@@ -572,13 +548,13 @@ class Bigchain(object):
         # 2. create the block with one transaction
         # 3. write the block to the bigchain
 
-        blocks_count = self.backend.count_blocks()
+        blocks_count = backend.query.count_blocks(self.connection)
 
         if blocks_count:
             raise exceptions.GenesisBlockAlreadyExistsError('Cannot create the Genesis block')
 
         block = self.prepare_genesis_block()
-        self.write_block(block, durability='hard')
+        self.write_block(block)
 
         return block
 
@@ -605,11 +581,11 @@ class Bigchain(object):
         }
 
         vote_data = serialize(vote)
-        signature = crypto.SigningKey(self.me_private).sign(vote_data.encode())
+        signature = crypto.PrivateKey(self.me_private).sign(vote_data.encode())
 
         vote_signed = {
             'node_pubkey': self.me,
-            'signature': signature,
+            'signature': signature.decode(),
             'vote': vote
         }
 
@@ -617,12 +593,12 @@ class Bigchain(object):
 
     def write_vote(self, vote):
         """Write the vote to the database."""
-        return self.backend.write_vote(vote)
+        return backend.query.write_vote(self.connection, vote)
 
     def get_last_voted_block(self):
         """Returns the last block that this node voted on."""
 
-        return Block.from_dict(self.backend.get_last_voted_block(self.me))
+        return Block.from_dict(backend.query.get_last_voted_block(self.connection, self.me))
 
     def get_unvoted_blocks(self):
         """Return all the blocks that have not been voted on by this node.
@@ -632,12 +608,12 @@ class Bigchain(object):
         """
 
         # XXX: should this return instaces of Block?
-        return self.backend.get_unvoted_blocks(self.me)
+        return backend.query.get_unvoted_blocks(self.connection, self.me)
 
     def block_election_status(self, block_id, voters):
         """Tally the votes on a block, and return the status: valid, invalid, or undecided."""
 
-        votes = list(self.backend.get_votes_by_block_id(block_id))
+        votes = list(backend.query.get_votes_by_block_id(self.connection, block_id))
         n_voters = len(voters)
 
         voter_counts = collections.Counter([vote['node_pubkey'] for vote in votes])
@@ -659,7 +635,7 @@ class Bigchain(object):
         prev_block = [vote['vote']['previous_block'] for vote in votes]
         # vote_validity checks whether a vote is valid
         # or invalid, e.g. [False, True, True]
-        vote_validity = [self.consensus.verify_vote_signature(voters, vote) for vote in votes]
+        vote_validity = [self.consensus.verify_vote(voters, vote) for vote in votes]
 
         # element-wise product of stated vote and validity of vote
         # vote_cast = [True, True, False] and

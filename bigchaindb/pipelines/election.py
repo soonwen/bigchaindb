@@ -6,10 +6,11 @@ is specified in ``create_pipeline``.
 """
 import logging
 
-import rethinkdb as r
 from multipipes import Pipeline, Node
 
-from bigchaindb.pipelines.utils import ChangeFeed
+import bigchaindb
+from bigchaindb import backend
+from bigchaindb.backend.changefeed import ChangeFeed
 from bigchaindb.models import Block
 from bigchaindb import Bigchain
 
@@ -31,9 +32,8 @@ class Election:
             next_vote: The next vote.
 
         """
-        next_block = self.bigchain.connection.run(
-                r.table('bigchain')
-                .get(next_vote['vote']['voting_for_block']))
+        next_block = self.bigchain.get_block(
+            next_vote['vote']['voting_for_block'])
 
         block_status = self.bigchain.block_election_status(next_block['id'],
                                                            next_block['block']['voters'])
@@ -52,10 +52,6 @@ class Election:
         return invalid_block
 
 
-def get_changefeed():
-    return ChangeFeed(table='votes', operation=ChangeFeed.INSERT)
-
-
 def create_pipeline():
     election = Election()
 
@@ -65,6 +61,11 @@ def create_pipeline():
     ])
 
     return election_pipeline
+
+
+def get_changefeed():
+    connection = backend.connect(**bigchaindb.config['database'])
+    return backend.get_changefeed(connection, 'votes', ChangeFeed.INSERT)
 
 
 def start():

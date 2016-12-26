@@ -5,38 +5,31 @@ The HTTP Client-Server API
 
    The HTTP client-server API is currently quite rudimentary. For example,
    there is no ability to do complex queries using the HTTP API. We plan to add
-   querying capabilities in the future.
+   more querying capabilities in the future.
 
-When you start BigchainDB using `bigchaindb start`, an HTTP API is exposed at
-the address stored in the BigchainDB node configuration settings. The default
-is:
+This page assumes you already know an API Root URL
+for a BigchainDB node or reverse proxy.
+It should be something like ``http://apihosting4u.net:9984``
+or ``http://12.34.56.78:9984``.
 
-`http://localhost:9984/api/v1/ <http://localhost:9984/api/v1/>`_
-
-but that address can be changed by changing the "API endpoint" configuration
-setting (e.g. in a local config file). There's more information about setting
-the API endpoint in :doc:`the section about BigchainDB Configuration Settings
-<../server-reference/configuration>`.
-
-There are other configuration settings related to the web server (serving the
-HTTP API). In particular, the default is for the web server socket to bind to
-``localhost:9984`` but that can be changed (e.g. to ``0.0.0.0:9984``). For more
-details, see the "server" settings ("bind", "workers" and "threads") in
-:doc:`the section about BigchainDB Configuration Settings
-<../server-reference/configuration>`.
+If you set up a BigchainDB node or reverse proxy yourself,
+and you're not sure what the API Root URL is,
+then see the last section of this page for help.
 
 
-API Root
---------
+API Root URL
+------------
 
-If you send an HTTP GET request to e.g. ``http://localhost:9984`` (with no
-``/api/v1/`` on the end), then you should get an HTTP response with something
-like the following in the body:
+If you send an HTTP GET request to the API Root URL
+e.g. ``http://localhost:9984``
+or ``http://apihosting4u.net:9984``
+(with no ``/api/v1/`` on the end),
+then you should get an HTTP response
+with something like the following in the body:
 
 .. code-block:: json
 
     {
-      "api_endpoint": "http://localhost:9984/api/v1",
       "keyring": [
         "6qHyZew94NMmUTYyHnkZsB8cxJYuRNEiEpXHe1ih9QX3",
         "AdDuyrTyjrDt935YnFu4VBCVDhHtY2Y6rcy7x2TFeiRi"
@@ -425,7 +418,7 @@ Transactions
    Push a new transaction.
 
    .. note::
-       The posted transaction should be valid `transaction
+       The posted transaction should be a valid `transaction
        <https://bigchaindb.readthedocs.io/en/latest/data-models/transaction-model.html>`_.
        The steps to build a valid transaction are beyond the scope of this page.
        One would normally use a driver such as the `BigchainDB Python Driver
@@ -770,3 +763,40 @@ Votes
 .. http:get:: /votes?block_id={block_id}&voter={voter}
 
    Description: TODO
+
+
+Determining the API Root URL
+----------------------------
+
+When you start BigchainDB Server using ``bigchaindb start``,
+an HTTP API is exposed at some address. The default is:
+
+`http://localhost:9984/api/v1/ <http://localhost:9984/api/v1/>`_
+
+It's bound to ``localhost``,
+so you can access it from the same machine,
+but it won't be directly accessible from the outside world.
+(The outside world could connect via a SOCKS proxy or whatnot.)
+
+The documentation about BigchainDB Server :any:`Configuration Settings`
+has a section about how to set ``server.bind`` so as to make
+the HTTP API publicly accessible.
+
+If the API endpoint is publicly accessible,
+then the public API Root URL is determined as follows:
+
+- The public IP address (like 12.34.56.78)
+  is the public IP address of the machine exposing
+  the HTTP API to the public internet (e.g. either the machine hosting
+  Gunicorn or the machine running the reverse proxy such as Nginx).
+  It's determined by AWS, Azure, Rackspace, or whoever is hosting the machine.
+
+- The DNS hostname (like apihosting4u.net) is determined by DNS records,
+  such as an "A Record" associating apihosting4u.net with 12.34.56.78
+
+- The port (like 9984) is determined by the ``server.bind`` setting
+  if Gunicorn is exposed directly to the public Internet.
+  If a reverse proxy (like Nginx) is exposed directly to the public Internet
+  instead, then it could expose the HTTP API on whatever port it wants to.
+  (It should expose the HTTP API on port 9984, but it's not bound to do
+  that by anything other than convention.)

@@ -7,11 +7,12 @@ function.
 
 import logging
 
-import rethinkdb as r
-from multipipes import Pipeline, Node
+from multipipes import Pipeline, Node, Pipe
 
+import bigchaindb
+from bigchaindb import backend
+from bigchaindb.backend.changefeed import ChangeFeed
 from bigchaindb.models import Transaction
-from bigchaindb.pipelines.utils import ChangeFeed
 from bigchaindb import Bigchain
 
 
@@ -116,7 +117,8 @@ class BlockPipeline:
         Returns:
             :class:`~bigchaindb.models.Block`: The Block.
         """
-        logger.info('Write new block %s with %s transactions', block.id, block.transactions)
+        logger.info('Write new block %s with %s transactions',
+                    block.id, len(block.transactions))
         self.bigchain.write_block(block)
         return block
 
@@ -134,26 +136,6 @@ class BlockPipeline:
         return block
 
 
-def initial():
-    """Return old transactions from the backlog."""
-
-    bigchain = Bigchain()
-
-    return bigchain.connection.run(
-        r.table('backlog')
-        .between([bigchain.me, r.minval],
-                 [bigchain.me, r.maxval],
-                 index='assignee__transaction_timestamp')
-        .order_by(index=r.asc('assignee__transaction_timestamp')))
-
-
-def get_changefeed():
-    """Create and return the changefeed for the backlog."""
-
-    return ChangeFeed('backlog', ChangeFeed.INSERT | ChangeFeed.UPDATE,
-                      prefeed=initial())
-
-
 def create_pipeline():
     """Create and return the pipeline of operations to be distributed
     on different processes."""
@@ -161,6 +143,7 @@ def create_pipeline():
     block_pipeline = BlockPipeline()
 
     pipeline = Pipeline([
+        Pipe(maxsize=1000),
         Node(block_pipeline.filter_tx),
         Node(block_pipeline.validate_tx, fraction_of_cores=1),
         Node(block_pipeline.create, timeout=1),
@@ -169,6 +152,12 @@ def create_pipeline():
     ])
 
     return pipeline
+
+
+def get_changefeed():
+    connection = backend.connect(**bigchaindb.config['database'])
+    return backend.get_changefeed(connection, 'backlog',
+                                  ChangeFeed.INSERT | ChangeFeed.UPDATE)
 
 
 def start():

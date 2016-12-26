@@ -15,8 +15,9 @@ config = {
         'threads': None,  # if none, the value will be cpu_count * 2 + 1
     },
     'database': {
+        'backend': os.environ.get('BIGCHAINDB_DATABASE_BACKEND', 'rethinkdb'),
         'host': os.environ.get('BIGCHAINDB_DATABASE_HOST', 'localhost'),
-        'port': 28015,
+        'port': int(os.environ.get('BIGCHAINDB_DATABASE_PORT', 28015)),
         'name': 'bigchain',
     },
     'keypair': {
@@ -29,8 +30,7 @@ config = {
         'port': 8125,
         'rate': 0.01,
     },
-    'api_endpoint': os.environ.get('BIGCHAINDB_API_ENDPOINT') or 'http://localhost:9984/api/v1',
-    'backlog_reassign_delay': 30
+    'backlog_reassign_delay': 120
 }
 
 # We need to maintain a backup copy of the original config dict in case
