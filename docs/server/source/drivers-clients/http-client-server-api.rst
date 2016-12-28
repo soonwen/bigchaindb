@@ -192,65 +192,13 @@ Transactions
 
    **Example request**:
 
-   .. sourcecode:: http
-
-      POST /transactions/ HTTP/1.1
-      Host: example.com
-      Content-Type: application/json
-
-      {
-        "transaction": {
-          "conditions": [
-            {
-              "cid": 0,
-              "condition": {
-                "uri": "cc:4:20:GG-pi3CeIlySZhQoJVBh9O23PzrOuhnYI7OHqIbHjkk:96",
-                "details": {
-                  "signature": null,
-                  "type": "fulfillment",
-                  "type_id": 4,
-                  "bitmask": 32,
-                  "public_key": "2ePYHfV3yS3xTxF9EE3Xjo8zPwq2RmLPFAJGQqQKc3j6"
-                }
-              },
-              "amount": 1,
-              "owners_after": [
-                "2ePYHfV3yS3xTxF9EE3Xjo8zPwq2RmLPFAJGQqQKc3j6"
-              ]
-            }
-          ],
-          "operation": "CREATE",
-          "asset": {
-            "divisible": false,
-            "updatable": false,
-            "data": null,
-            "id": "aebeab22-e672-4d3b-a187-bde5fda6533d",
-            "refillable": false
-          },
-          "metadata": null,
-          "timestamp": "1477578978",
-          "fulfillments": [
-            {
-              "fid": 0,
-              "input": null,
-              "fulfillment": "cf:4:GG-pi3CeIlySZhQoJVBh9O23PzrOuhnYI7OHqIbHjkn2VnQaEWvecO1x82Qr2Va_JjFywLKIOEV1Ob9Ofkeln2K89ny2mB-s7RLNvYAVzWNiQnp18_nQEUsvwACEXTYJ",
-              "owners_before": [
-                "2ePYHfV3yS3xTxF9EE3Xjo8zPwq2RmLPFAJGQqQKc3j6"
-              ]
-            }
-          ]
-        },
-        "id": "2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e",
-        "version": 1
-      }
+   .. literalinclude:: samples/post-tx-request.http
+      :language: http
 
    **Example response**:
 
-   .. sourcecode:: http
-
-      HTTP/1.1 202 Accepted
-      Content-Type: application/json
-      Location: ../statuses/2d431073e1477f3073a4693ac7ff9be5634751de1b8abaa1f4e19548ef0b4b0e
+   .. literalinclude:: samples/post-tx-response.http
+      :language: http
 
    :resheader Content-Type: ``application/json``
    :resheader Location: As the transaction will be persisted asynchronously, an endpoint to monitor its status is provided in this header.
@@ -284,33 +232,18 @@ Statuses
 
    **Example request**:
 
-   .. sourcecode:: http
-
-      GET /statuses/7ad5a4b83bc8c70c4fd7420ff3c60693ab8e6d0e3124378ca69ed5acd2578792 HTTP/1.1
-      Host: example.com
+   .. literalinclude:: samples/get-statuses-tx-request.http
+      :language: http
 
    **Example response**:
 
-   .. sourcecode:: http
-
-      HTTP/1.1 200 OK
-      Content-Type: application/json
-
-      {
-        "status": "invalid"
-      }
+   .. literalinclude:: samples/get-statuses-tx-invalid-response.http
+      :language: http
 
    **Example response**:
 
-   .. sourcecode:: http
-
-      HTTP/1.1 303 See Other
-      Content-Type: application/json
-      Location: ../transactions/7ad5a4b83bc8c70c4fd7420ff3c60693ab8e6d0e3124378ca69ed5acd2578792
-
-      {
-        "status": "valid"
-      }
+   .. literalinclude:: samples/get-statuses-tx-valid-response.http
+      :language: http
 
    :resheader Content-Type: ``application/json``
    :resheader Location: Once the transaction has been persisted, this header will link to the actual resource.
