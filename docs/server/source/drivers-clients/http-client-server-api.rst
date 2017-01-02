@@ -23,41 +23,47 @@ BigchainDB Root URL
 If you send an HTTP GET request to the BigchainDB Root URL
 e.g. ``http://localhost:9984``
 or ``http://apihosting4u.net:9984``
-(with no ``/api/v1/`` on the end),
+(with no ``/api/v0.9/`` on the end),
 then you should get an HTTP response
 with something like the following in the body:
 
 .. code-block:: json
 
     {
+      "_links": {
+        "docs": { "href": "https://docs.bigchaindb.com/projects/server/en/v0.9.0/" }
+      }
       "keyring": [
         "6qHyZew94NMmUTYyHnkZsB8cxJYuRNEiEpXHe1ih9QX3",
         "AdDuyrTyjrDt935YnFu4VBCVDhHtY2Y6rcy7x2TFeiRi"
       ],
       "public_key": "AiygKSRhZWTxxYT4AfgKoTG4TZAoPsWoEt6C6bLq4jJR",
       "software": "BigchainDB",
-      "version": "0.9.0"
+      "version": "0.9.0",
     }
 
 
-API Root URL
+API Root Endpoint
 -------------------
 
-If you send an HTTP GET request to the API Root URL
-e.g. ``http://localhost:9984/api/v1/``
-or ``http://apihosting4u.net:9984/api/v1/``,
+If you send an HTTP GET request to the API Root Endpoint
+e.g. ``http://localhost:9984/api/v0.9/``
+or ``http://apihosting4u.net:9984/api/v0.9/``,
 then you should get an HTTP response
-that allows you to discover the BigchainDB endpoints:
+that allows you to discover the BigchainDB API endpoints:
 
 .. code-block:: json
 
     {
       "_links": {
-        "self": { "href": "/" },
-        "transactions": { "href": "/transactions" },
-        "statuses": { "href": "/statuses" },
         "blocks": { "href": "/blocks" },
+        "docs": { "href": "https://docs.bigchaindb.com/projects/server/en/v0.9.0/drivers-clients/http-client-server-api.html" },
+        "self": { "href": "/" },
+        "statuses": { "href": "/statuses" },
+        "transactions": { "href": "/transactions" },
         "votes": { "href": "/votes" }
+      },
+      "version" : "0.9.0"
     }
 
 Transactions
@@ -471,7 +477,7 @@ Determining the API Root URL
 When you start BigchainDB Server using ``bigchaindb start``,
 an HTTP API is exposed at some address. The default is:
 
-`http://localhost:9984/api/v1/ <http://localhost:9984/api/v1/>`_
+`http://localhost:9984/api/v0.9/ <http://localhost:9984/api/v0.9/>`_
 
 It's bound to ``localhost``,
 so you can access it from the same machine,
