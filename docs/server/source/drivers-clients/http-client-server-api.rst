@@ -17,10 +17,10 @@ and you're not sure what the API Root URL is,
 then see the last section of this page for help.
 
 
-API Root URL
-------------
+BigchainDB Root URL
+-------------------
 
-If you send an HTTP GET request to the API Root URL
+If you send an HTTP GET request to the BigchainDB Root URL
 e.g. ``http://localhost:9984``
 or ``http://apihosting4u.net:9984``
 (with no ``/api/v1/`` on the end),
@@ -36,7 +36,28 @@ with something like the following in the body:
       ],
       "public_key": "AiygKSRhZWTxxYT4AfgKoTG4TZAoPsWoEt6C6bLq4jJR",
       "software": "BigchainDB",
-      "version": "0.6.0"
+      "version": "0.9.0"
+    }
+
+
+API Root URL
+-------------------
+
+If you send an HTTP GET request to the API Root URL
+e.g. ``http://localhost:9984/api/v1/``
+or ``http://apihosting4u.net:9984/api/v1/``,
+then you should get an HTTP response
+that allows you to discover the BigchainDB endpoints:
+
+.. code-block:: json
+
+    {
+      "_links": {
+        "self": { "href": "/" },
+        "transactions": { "href": "/transactions" },
+        "statuses": { "href": "/statuses" },
+        "blocks": { "href": "/blocks" },
+        "votes": { "href": "/votes" }
     }
 
 Transactions
