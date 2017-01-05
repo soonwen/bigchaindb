@@ -250,8 +250,8 @@ Transactions
    :resheader Content-Type: ``application/json``
    :resheader Location: As the transaction will be persisted asynchronously, an endpoint to monitor its status is provided in this header.
 
-   :statuscode 202: The pushed transaction was accepted, but the processing has not been completed.
-   :statuscode 400: The transaction was invalid and not created.
+   :statuscode 202: The pushed transaction was accepted in the ``BACKLOG``, but the processing has not been completed.
+   :statuscode 400: The transaction was malformed and not accepted in the ``BACKLOG``.
 
 
 Statuses
