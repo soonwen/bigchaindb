@@ -4,8 +4,11 @@ For more information please refer to the documentation on ReadTheDocs:
  - https://docs.bigchaindb.com/projects/server/en/latest/drivers-clients/
    http-client-server-api.html
 """
+import re
+
 from flask import current_app, request
-from flask_restful import Resource
+from flask_restful import Resource, reqparse
+
 
 from bigchaindb.common.exceptions import (
     AmountError,
@@ -69,7 +72,44 @@ class TransactionStatusApi(Resource):
         return {'status': status}
 
 
+def valid_txid(txid):
+    if re.match('^[a-fA-F0-9]{64,64}$', txid):
+        return txid.lower()
+    raise ValueError("Not a valid hash")
+
+
+def valid_bool(val):
+    if val.lower() == 'true':
+        return True
+    if val.lower() == 'false':
+        return False
+    raise ValueError('Boolean value must be "true" or "false"')
+
+
+def valid_ed25519(key):
+    if re.match('^[1-9a-zA-Z^OIl]{43,44}$', key):
+        return key.lower()
+    raise ValueError("Not a valid hash")
+
+
+def valid_operation(op):
+    if op.upper == 'CREATE':
+        return 'CREATE'
+    if op.upper == 'TRANSFER':
+        return 'TRANSFER'
+    raise ValueError('Operation must be "CREATE" or "TRANSFER')
+
+
 class TransactionListApi(Resource):
+    def get(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('operation', type=valid_operation)
+        parser.add_argument('unspent', type=valid_bool)
+        parser.add_argument('public_key', type=valid_ed25519, action="append")
+        parser.add_argument('asset_id', type=valid_txid)
+        args = parser.parse_args()
+        return args
+
     def post(self):
         """API endpoint to push transactions to the Federation.
 
